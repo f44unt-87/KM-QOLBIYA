@@ -132,8 +132,9 @@ with tab3:
         for _, r in edited_df.iterrows():
             rincian_wa_items += f"- {r['Keterangan Bon']}: Rp {r['Nominal (Rp)']:,.0f}\n"
 
+        # Teks Utama WhatsApp Bersih Tanpa Kode URL Encoding %E2%9A%93
         text_wa = (
-            f"*%E2%9A%93 NOTA TOTALAN KM QOLBIYA*\n"
+            f"*⚓ NOTA TOTALAN KM QOLBIYA*\n"
             f"Tanggal: {datetime.now().strftime('%d-%m-%Y %H:%M')}\n\n"
             f"*Rincian Pengeluaran Bon:*\n"
             f"{rincian_wa_items}"
@@ -148,7 +149,7 @@ with tab3:
         encoded_text = urllib.parse.quote(text_wa)
         link_wa = f"https://wa.me/6281353539600?text={encoded_text}"
         
-        # 2. STRUKTUR NOTA PRINT BERWARNA (WARNA DIKUNCI HITAM PEKAT UNTUK ISI TABEL)
+        # 2. STRUKTUR NOTA PRINT BERWARNA
         html_print_content = f"""
         <div style="font-family: Arial, sans-serif; max-width: 500px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background-color: #ffffff; color: #000000;">
             <h2 style="color: #1e3a8a; text-align: center; margin-bottom: 5px;">&#9875; KM QOLBIYA</h2>
