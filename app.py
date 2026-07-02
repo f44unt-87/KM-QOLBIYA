@@ -92,7 +92,6 @@ with tab3:
     
     st.markdown("---")
     st.markdown("#### 📑 Rincian Tabel Pengeluaran (Bon Aktif)")
-    st.caption("💡 Klik angka nominal untuk EDIT, atau pilih baris lalu tekan hapus di HP.")
     
     df_bon = pd.read_sql_query("SELECT id, tanggal AS Tanggal, jenis_item AS [Keterangan Bon], nominal AS [Nominal (Rp)] FROM perbekalan WHERE status='Belum Lunas'", conn)
     
@@ -128,37 +127,69 @@ with tab3:
         st.markdown("---")
         st.markdown("#### 📱 Aksi Nota & Totalan")
         
-        # Format teks Nota untuk WA dan Tampilan Cetak
-        text_nota = f"    NOTA TOTALAN KM QOLBIYA\n"
-        text_nota += f"    Tanggal: {datetime.now().strftime('%d-%m-%Y %H:%M')}\n"
-        text_nota += f"========================================\n"
-        text_nota += f" RINCIAN PENGELUARAN BON:\n"
+        # 1. LOGIKA TEKS KHUSUS WHATSAPP
+        text_wa = f"*NOTA TOTALAN KM QOLBIYA*\n"
+        text_wa += f"Tanggal: {datetime.now().strftime('%d-%m-%Y %H:%M')}\n\n"
+        text_wa += f"*Rincian Pengeluaran Bon:*\n"
         for _, r in edited_df.iterrows():
-            text_nota += f" - {r['Keterangan Bon']}: Rp {r['Nominal (Rp)']:,.0f}\n"
-        text_nota += f"----------------------------------------\n"
-        text_nota += f" 📦 Total Bon       : Rp {total_perbekalan:,.0f}\n"
-        text_nota += f" 💰 Pendapatan Kotor: Rp {total_pendapatan_kotor:,.0f}\n"
-        text_nota += f"========================================\n"
-        text_nota += f" 💵 SISA BERSIH     : Rp {sisa_bersih:,.0f}\n"
-        text_nota += f"----------------------------------------\n"
-        text_nota += f"      Sistem Catatan MasdabiyaNet"
+            text_wa += f"- {r['Keterangan Bon']}: Rp {r['Nominal (Rp)']:,.0f}\n"
+        text_wa += f"\n----------------------------------------\n"
+        text_wa += f"📦 *Total Bon:* Rp {total_perbekalan:,.0f}\n"
+        text_wa += f"💰 *Pendapatan Kotor:* Rp {total_pendapatan_kotor:,.0f}\n"
+        text_wa += f"💵 *SISA BERSIH:* Rp {sisa_bersih:,.0f}\n"
+        text_wa += f"----------------------------------------\n"
+        text_wa += f"_Sistem Catatan MasdabiyaNet_"
         
-        # Teks Khusus WA (Pakai Bold Asterisk)
-        text_wa = text_nota.replace("NOTA TOTALAN KM QOLBIYA", "*NOTA TOTALAN KM QOLBIYA*").replace("SISA BERSIH", "*SISA BERSIH*")
         encoded_text = urllib.parse.quote(text_wa)
         link_wa = f"https://wa.me/6281353539600?text={encoded_text}"
         
+        # 2. LOGIKA STRUK STRUKTURAL UNTUK DI-PRINT (TERSEMBUNYI)
+        html_print_content = f"""
+        <div style='font-family:Courier,monospace; width:280px; padding:10px; font-size:12px; line-height:1.4;'>
+            <center><b>NOTA TOTALAN KM QOLBIYA</b><br>Tgl: {datetime.now().strftime('%d-%m-%Y %H:%M')}</center>
+            ------------------------------------<br>
+            <b>RINCIAN PENGELUARAN BON:</b><br>
+        """
+        for _, r in edited_df.iterrows():
+            html_print_content += f"- {r['Keterangan Bon']}:<br>&nbsp;&nbsp;Rp {r['Nominal (Rp)']:,.0f}<br>"
+        html_print_content += f"""
+            ------------------------------------<br>
+            📦 Total Bon&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: Rp {total_perbekalan:,.0f}<br>
+            💰 Pend. Kotor&nbsp;&nbsp;&nbsp;: Rp {total_pendapatan_kotor:,.0f}<br>
+            ====================================<br>
+            💵 <b>SISA BERSIH&nbsp;&nbsp;: Rp {sisa_bersih:,.0f}</b><br>
+            ------------------------------------<br>
+            <center><i>Sistem Catatan MasdabiyaNet</i></center>
+        </div>
+        """
+        
+        # Tombol Kirim WA & Cetak Nota bersebelahan
         col_wa, col_print = st.columns(2)
         with col_wa:
             st.link_button("📲 Kirim WA (081353539600)", link_wa, type="primary", use_container_width=True)
             
         with col_print:
-            # Perbaikan Sistem Print: Menampilkan slip nota teks dalam kotak struk belanja
-            # Jika ingin diprint, user tinggal screenshot atau block teks struk ini
-            st.markdown("`Klik kanan/Tahan struk di bawah untuk salin/cetak`")
-            
-        # Menampilkan struk belanja tiruan (Maju ke printer thermal friendly)
-        st.code(text_nota, language="text")
+            # Tombol print cerdas: Membuka window baru, mengisi struk, lalu menembak dialog cetak Chrome
+            js_print_script = f"""
+            <script>
+            function cetakStruk() {{
+                var printWindow = window.open('', '_blank');
+                printWindow.document.write("<html><head><title>Print Nota KM QOLBIYA</title></head><body style='margin:10px;'>");
+                printWindow.document.write(`{html_print_content}`);
+                printWindow.document.write("</body></html>");
+                printWindow.document.close();
+                printWindow.focus();
+                setTimeout(function() {{
+                    printWindow.print();
+                    printWindow.close();
+                }}, 500);
+            }}
+            </script>
+            <button onclick="cetakStruk()" style="width:100%; height:40px; background-color:#2563eb; color:white; border:none; border-radius:0.5rem; font-weight:bold; font-size:14px; cursor:pointer; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);">
+                🖨️ Print / Cetak Nota
+            </button>
+            """
+            st.components.v1.html(js_print_script, height=45)
             
         st.markdown("---")
         if st.button("🔴 TUTUP BUKU & RESET SEMUA DATA", use_container_width=True):
