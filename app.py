@@ -1,46 +1,139 @@
-        # 2. STRUKTUR NOTA PRINT BERWARNA (Sempurna untuk Dark Mode & Light Mode)
-        html_print_content = f"""
-        <div style='font-family: Arial, sans-serif; max-width: 500px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background-color: #ffffff; color: #000000;'>
-            <h2 style='color: #1e3a8a; text-align: center; margin-bottom: 5px;'>⚓ KM QOLBIYA</h2>
-            <p style='text-align: center; color: #444444; font-size: 12px; margin-top: 0;'>Laporan Totalan Hasil Layar - {datetime.now().strftime('%d/%m/%Y %H:%M')}</p>
-            
-            <table style='width: 100%; border-collapse: collapse; margin-top: 15px;'>
-                <thead>
-                    <tr style='background-color: #3b82f6; color: #ffffff; text-align: left; font-size: 13px;'>
-                        <th style='padding: 10px; border: 1px solid #cbd5e1; color: #ffffff;'>Tanggal</th>
-                        <th style='padding: 10px; border: 1px solid #cbd5e1; color: #ffffff;'>Keterangan Bon</th>
-                        <th style='padding: 10px; border: 1px solid #cbd5e1; text-align: right; color: #ffffff;'>Nominal</th>
-                    </tr>
-                </thead>
-                <tbody style='font-size: 13px;'>
-        """
-        for idx, r in edited_df.iterrows():
-            bg_row = "#f8fafc" if idx % 2 == 0 else "#ffffff"
-            html_print_content += f"""
-                    <tr style='background-color: {bg_row}; color: #000000;'>
-                        <td style='padding: 10px; border: 1px solid #e2e8f0; color: #333333;'>{r['Tanggal']}</td>
-                        <td style='padding: 10px; border: 1px solid #e2e8f0; font-weight: bold; color: #000000;'>{r['Keterangan Bon']}</td>
-                        <td style='padding: 10px; border: 1px solid #e2e8f0; text-align: right; color: #b91c1c; font-weight: bold;'>Rp {r['Nominal (Rp)']:,.0f}</td>
-                    </tr>
-            """
-        html_print_content += f"""
-                </tbody>
-            </table>
-            
-            <table style='width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px; font-weight: bold;'>
-                <tr style='background-color: #fca5a5; color: #991b1b;'>
-                    <td style='padding: 10px; border: 1px solid #f87171; color: #991b1b;'>📦 TOTAL BON PERBEKALAN</td>
-                    <td style='padding: 10px; border: 1px solid #f87171; text-align: right; color: #991b1b;'>Rp {total_perbekalan:,.0f}</td>
-                </tr>
-                <tr style='background-color: #86efac; color: #166534;'>
-                    <td style='padding: 10px; border: 1px solid #4ade80; color: #166534;'>💰 PENDAPATAN KOTOR LAUT</td>
-                    <td style='padding: 10px; border: 1px solid #4ade80; text-align: right; color: #166534;'>Rp {total_pendapatan_kotor:,.0f}</td>
-                </tr>
-                <tr style='background-color: #1e3a8a; color: #ffffff; font-size: 15px;'>
-                    <td style='padding: 12px; border: 1px solid #1e3a8a; color: #ffffff;'>💵 SISA BERSIH (BAGI HASIL)</td>
-                    <td style='padding: 12px; border: 1px solid #1e3a8a; text-align: right; font-weight: 900; color: #ffffff;'>Rp {sisa_原始:,.0f}</td>
-                </tr>
-            </table>
-            <p style='text-align: center; font-size: 11px; color: #64748b; margin-top: 25px;'><i>Sistem Catatan Kasir Resmi - MasdabiyaNet</i></p>
-        </div>
-        """
+import streamlit as st
+import sqlite3
+from datetime import datetime
+import pandas as pd
+import urllib.parse
+
+# 1. SETUP DATABASE
+def init_db():
+    conn = sqlite3.connect("database_qolbiya.db")
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS perbekalan (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tanggal TEXT,
+            jenis_item TEXT,
+            nominal INTEGER,
+            status TEXT DEFAULT 'Belum Lunas'
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS penjualan_ikan (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tanggal TEXT,
+            pendapatan_kotor INTEGER
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+init_db()
+
+# KONFIGURASI TAMPILAN HP
+st.set_page_config(page_title="KM QOLBIYA", layout="centered")
+st.markdown("<h2 style='text-align: center; margin-bottom: 0;'>⚓ KM QOLBIYA</h2>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: gray; font-size: 14px;'>Sistem Manajemen Hasil Layar</p>", unsafe_allow_html=True)
+
+def get_connection():
+    return sqlite3.connect("database_qolbiya.db")
+
+conn = get_connection()
+
+# AMBIL DATA UNTUK KALKULASI TOTALAN
+total_perbekalan = pd.read_sql_query("SELECT SUM(nominal) FROM perbekalan WHERE status='Belum Lunas'", conn).iloc[0,0] or 0
+total_pendapatan_kotor = pd.read_sql_query("SELECT SUM(pendapatan_kotor) FROM penjualan_ikan", conn).iloc[0,0] or 0
+sisa_bersih = total_pendapatan_kotor - total_perbekalan
+
+# --- MEMBUAT 3 TAB ---
+tab1, tab2, tab3 = st.tabs(["🛒 Input Bon", "🐟 Input Jual Ikan", "📋 Laporan Totalan"])
+
+# ==================== TAB 1: INPUT BON ====================
+with tab1:
+    st.markdown("### 🛒 Catat Pengeluaran Bon")
+    with st.form("form_perbekalan", clear_on_submit=True):
+        jenis_item = st.selectbox("Jenis Perbekalan:", ["Solar", "Es Batu", "Logistik/Sembako", "Uang Saku ABK", "Lainnya"])
+        keterangan_tambahan = st.text_input("Keterangan Tambahan (Toko / Jumlah)")
+        nominal = st.number_input("Nominal Pengeluaran (Rp)", min_value=0, step=50000)
+        submit = st.form_submit_button("Simpan Pengeluaran")
+        
+        if submit and nominal > 0:
+            tgl = datetime.now().strftime('%Y-%m-%d')
+            item_final = f"{jenis_item} ({keterangan_tambahan})" if keterangan_tambahan else jenis_item
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO perbekalan (tanggal, jenis_item, nominal) VALUES (?, ?, ?)", (tgl, item_final, nominal))
+            conn.commit()
+            st.success(f"Tercatat: {item_final} - Rp {nominal:,.0f}")
+            st.rerun()
+
+# ==================== TAB 2: INPUT JUAL IKAN ====================
+with tab2:
+    st.markdown("### 🐟 Catat Pendapatan Penjualan")
+    with st.form("form_jual", clear_on_submit=True):
+        pendapatan = st.number_input("Total Uang Hasil Jual Ikan (Rp)", min_value=0, step=500000)
+        submit = st.form_submit_button("Simpan Hasil Jual")
+        
+        if submit and pendapatan > 0:
+            tgl = datetime.now().strftime('%Y-%m-%d')
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM penjualan_ikan")
+            cursor.execute("INSERT INTO penjualan_ikan (tanggal, pendapatan_kotor) VALUES (?, ?)", (tgl, pendapatan))
+            conn.commit()
+            st.success(f"Hasil penjualan Rp {pendapatan:,.0f} berhasil disimpan!")
+            st.rerun()
+
+# ==================== TAB 3: LAPORAN, EDIT, & NOTA BERWARNA ====================
+with tab3:
+    st.markdown("### 📊 Ringkasan Keuangan Saat Ini")
+    
+    # Kartu Informasi Utama
+    st.error(f"📦 **Total Bon:** Rp {total_perbekalan:,.0f}")
+    st.success(f"💰 **Pendapatan Kotor:** Rp {total_pendapatan_kotor:,.0f}")
+    st.info(f"💵 **SISA BERSIH:** Rp {sisa_bersih:,.0f}")
+    
+    st.markdown("---")
+    st.markdown("#### 📑 Rincian Tabel Pengeluaran (Bon Aktif)")
+    
+    df_bon = pd.read_sql_query("SELECT id, tanggal AS Tanggal, jenis_item AS [Keterangan Bon], nominal AS [Nominal (Rp)] FROM perbekalan WHERE status='Belum Lunas'", conn)
+    
+    if df_bon.empty:
+        st.info("Belum ada rincian bon belanja.")
+        edited_df = df_bon
+    else:
+        edited_df = st.data_editor(
+            df_bon, 
+            use_container_width=True, 
+            hide_index=True,
+            column_config={"id": None},
+            num_rows="dynamic"
+        )
+        
+        if not edited_df.equals(df_bon):
+            if st.button("💾 Simpan Perubahan Tabel", type="secondary", use_container_width=True):
+                cursor = conn.cursor()
+                current_ids = edited_df['id'].tolist() if 'id' in edited_df.columns else []
+                for original_id in df_bon['id'].tolist():
+                    if original_id not in current_ids:
+                        cursor.execute("DELETE FROM perbekalan WHERE id = ?", (original_id,))
+                
+                for _, row in edited_df.iterrows():
+                    cursor.execute(
+                        "UPDATE perbekalan SET jenis_item = ?, [nominal] = ? WHERE id = ?",
+                        (row['Keterangan Bon'], row['Nominal (Rp)'], row['id'])
+                    )
+                conn.commit()
+                st.success("Perubahan berhasil disimpan!")
+                st.rerun()
+        
+        st.markdown("---")
+        st.markdown("#### 📱 Aksi Nota & Totalan")
+        
+        # 1. TEXT UNTUK WHATSAPP
+        text_wa = f"*NOTA TOTALAN KM QOLBIYA*\n"
+        text_wa += f"Tanggal: {datetime.now().strftime('%d-%m-%Y %H:%M')}\n\n"
+        text_wa += f"*Rincian Pengeluaran Bon:*\n"
+        for _, r in edited_df.iterrows():
+            text_wa += f"- {r['Keterangan Bon']}: Rp {r['Nominal (Rp)']:,.0f}\n"
+        text_wa += f"\n----------------------------------------\n"
+        text_wa += f"📦 *Total Bon:* Rp {total_perbekalan:,.0f}\n"
+        text_wa += f"💰 *Pendapatan Kotor:* Rp {total_pendapatan_kotor:,.0f}\n"
+        text_wa += f"💵 *SISA BERSIH:* Rp {sisa_bersih:
