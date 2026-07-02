@@ -32,7 +32,7 @@ init_db()
 # KONFIGURASI TAMPILAN HP
 st.set_page_config(page_title="KM QOLBIYA", layout="centered")
 st.markdown("<h2 style='text-align: center; margin-bottom: 0;'>⚓ KM QOLBIYA</h2>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: gray; font-size: 14px;'>Sistem Manajemen Hasil Layar</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: gray; font-size: 14px;'>Sistem Manajemen Hasil Berlayar</p>", unsafe_allow_html=True)
 
 def get_connection():
     return sqlite3.connect("database_qolbiya.db")
@@ -132,7 +132,6 @@ with tab3:
         for _, r in edited_df.iterrows():
             rincian_wa_items += f"- {r['Keterangan Bon']}: Rp {r['Nominal (Rp)']:,.0f}\n"
 
-        # Teks Utama WhatsApp dengan pembungkus format paragraf bertingkat yang aman
         text_wa = (
             f"*%E2%9A%93 NOTA TOTALAN KM QOLBIYA*\n"
             f"Tanggal: {datetime.now().strftime('%d-%m-%Y %H:%M')}\n\n"
@@ -149,11 +148,11 @@ with tab3:
         encoded_text = urllib.parse.quote(text_wa)
         link_wa = f"https://wa.me/6281353539600?text={encoded_text}"
         
-        # 2. STRUKTUR NOTA PRINT BERWARNA (Aman dari bentrokan tanda kutip)
+        # 2. STRUKTUR NOTA PRINT BERWARNA (WARNA DIKUNCI HITAM PEKAT UNTUK ISI TABEL)
         html_print_content = f"""
         <div style="font-family: Arial, sans-serif; max-width: 500px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background-color: #ffffff; color: #000000;">
             <h2 style="color: #1e3a8a; text-align: center; margin-bottom: 5px;">&#9875; KM QOLBIYA</h2>
-            <p style="text-align: center; color: #444444; font-size: 12px; margin-top: 0;">Laporan Totalan Hasil Layar - {datetime.now().strftime('%d/%m/%Y %H:%M')}</p>
+            <p style="text-align: center; color: #000000; font-size: 12px; margin-top: 0; font-weight: bold;">Laporan Totalan Hasil Berlayar - {datetime.now().strftime('%d/%m/%Y %H:%M')}</p>
             
             <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
                 <thead>
@@ -169,9 +168,9 @@ with tab3:
             bg_row = "#f8fafc" if idx % 2 == 0 else "#ffffff"
             html_print_content += f"""
                     <tr style="background-color: {bg_row}; color: #000000;">
-                        <td style="padding: 10px; border: 1px solid #e2e8f0; color: #333333;">{r['Tanggal']}</td>
+                        <td style="padding: 10px; border: 1px solid #e2e8f0; color: #000000; font-weight: bold;">{r['Tanggal']}</td>
                         <td style="padding: 10px; border: 1px solid #e2e8f0; font-weight: bold; color: #000000;">{r['Keterangan Bon']}</td>
-                        <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: right; color: #b91c1c; font-weight: bold;">Rp {r['Nominal (Rp)']:,.0f}</td>
+                        <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: right; color: #000000; font-weight: bold;">Rp {r['Nominal (Rp)']:,.0f}</td>
                     </tr>
             """
         html_print_content += f"""
@@ -179,20 +178,20 @@ with tab3:
             </table>
             
             <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px; font-weight: bold;">
-                <tr style="background-color: #fca5a5; color: #991b1b;">
-                    <td style="padding: 10px; border: 1px solid #f87171; color: #991b1b;">&#128230; TOTAL BON PERBEKALAN</td>
-                    <td style="padding: 10px; border: 1px solid #f87171; text-align: right; color: #991b1b;">Rp {total_perbekalan:,.0f}</td>
+                <tr style="background-color: #fca5a5; color: #000000;">
+                    <td style="padding: 10px; border: 1px solid #f87171; color: #000000;">&#128230; TOTAL BON PERBEKALAN</td>
+                    <td style="padding: 10px; border: 1px solid #f87171; text-align: right; color: #000000; font-weight: bold;">Rp {total_perbekalan:,.0f}</td>
                 </tr>
-                <tr style="background-color: #86efac; color: #166534;">
-                    <td style="padding: 10px; border: 1px solid #4ade80; color: #166534;">&#128176; PENDAPATAN KOTOR LAUT</td>
-                    <td style="padding: 10px; border: 1px solid #4ade80; text-align: right; color: #166534;">Rp {total_pendapatan_kotor:,.0f}</td>
+                <tr style="background-color: #86efac; color: #000000;">
+                    <td style="padding: 10px; border: 1px solid #4ade80; color: #000000;">&#128176; PENDAPATAN KOTOR LAUT</td>
+                    <td style="padding: 10px; border: 1px solid #4ade80; text-align: right; color: #000000; font-weight: bold;">Rp {total_pendapatan_kotor:,.0f}</td>
                 </tr>
                 <tr style="background-color: #1e3a8a; color: #ffffff; font-size: 15px;">
                     <td style="padding: 12px; border: 1px solid #1e3a8a; color: #ffffff;">&#128181; SISA BERSIH (BAGI HASIL)</td>
                     <td style="padding: 12px; border: 1px solid #1e3a8a; text-align: right; font-weight: 900; color: #ffffff;">Rp {sisa_bersih:,.0f}</td>
                 </tr>
             </table>
-            <p style="text-align: center; font-size: 11px; color: #64748b; margin-top: 25px;"><i>Sistem Catatan Kasir Resmi - MasdabiyaNet</i></p>
+            <p style="text-align: center; font-size: 11px; color: #000000; margin-top: 25px; font-weight: bold;"><i>Sistem Catatan Kasir Resmi - MasdabiyaNet</i></p>
         </div>
         """
         
@@ -202,7 +201,6 @@ with tab3:
             st.link_button("📲 Kirim WA (081353539600)", link_wa, type="primary", use_container_width=True)
             
         with col_print:
-            # Mengamankan javascript print dari tanda kutip string pecah
             js_print_script = f"""
             <script>
             function cetakStruk() {{
