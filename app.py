@@ -2,12 +2,12 @@ import streamlit as st
 import sqlite3
 from datetime import datetime
 import pandas as pd
+import urllib.parse
 
-# 1. SETUP DATABASE (Khusus rincian KM QOLBIYA)
+# 1. SETUP DATABASE
 def init_db():
     conn = sqlite3.connect("database_qolbiya.db")
     cursor = conn.cursor()
-    # Tabel Pengeluaran / Bon Perbekalan
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS perbekalan (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -17,7 +17,6 @@ def init_db():
             status TEXT DEFAULT 'Belum Lunas'
         )
     ''')
-    # Tabel Pendapatan Kotor (Hasil Jual Ikan)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS penjualan_ikan (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,45 +29,30 @@ def init_db():
 
 init_db()
 
-# Konfigurasi Halaman Ringkas HP
+# KONFIGURASI TAMPILAN HP
 st.set_page_config(page_title="KM QOLBIYA", layout="centered")
-st.markdown("<h2 style='text-align: center;'>⚓ KM QOLBIYA</h2>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: gray;'>Sistem Manajemen Totalan Hasil Layar</p>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; margin-bottom: 0;'>⚓ KM QOLBIYA</h2>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: gray; font-size: 14px;'>Sistem Manajemen Hasil Layar</p>", unsafe_allow_html=True)
 
 def get_connection():
     return sqlite3.connect("database_qolbiya.db")
 
 conn = get_connection()
 
-# 2. HITUNG LOGIKA MATEMATIKA OTOMATIS
-# Ambil total bon perbekalan yang belum dibayar/belum ditotal
+# AMBIL DATA UNTUK KALKULASI TOTALAN
 total_perbekalan = pd.read_sql_query("SELECT SUM(nominal) FROM perbekalan WHERE status='Belum Lunas'", conn).iloc[0,0] or 0
-# Ambil total pendapatan kotor terakhir (atau akumulasi)
 total_pendapatan_kotor = pd.read_sql_query("SELECT SUM(pendapatan_kotor) FROM penjualan_ikan", conn).iloc[0,0] or 0
-# Hitung sisa bersih otomatis
 sisa_bersih = total_pendapatan_kotor - total_perbekalan
 
-# 3. DASHBOARD TOTALAN (Tampilan Angka Besar di HP)
-st.markdown("### 📊 Ringkasan Keuangan")
-st.error(f"📦 **Total Bon Perbekalan (Es + Solar dll):**\n\nRp {total_perbekalan:,.0f}")
-st.success(f"💰 **Pendapatan Kotor Jual Ikan:**\n\nRp {total_pendapatan_kotor:,.0f}")
+# --- MEMBUAT 3 TAB AGAR RINGKAS ---
+tab1, tab2, tab3 = st.tabs(["🛒 Input Bon", "🐟 Input Jual Ikan", "📋 Laporan Totalan"])
 
-if sisa_bersih >= 0:
-    st.info(f"💵 **SISA BERSIH (Bagi Hasil):**\n\nRp {sisa_bersih:,.0f}")
-else:
-    st.warning(f"⚠️ **Minus (Pendapatan kurang dari modal):**\n\nRp {sisa_bersih:,.0f}")
-
-st.markdown("---")
-
-# 4. MENU NAVIGASI INPUT
-menu = st.radio("Pilih Kegiatan:", ["🛒 Input Bon Perbekalan", "🐟 Input Hasil Jual Ikan", "📋 Rincian Bon Aktif"], horizontal=True)
-
-# --- MENU 1: INPUT BON PERBEKALAN ---
-if menu == "🛒 Input Bon Perbekalan":
-    st.subheader("📝 Catat Pengeluaran Bon")
+# ==================== TAB 1: INPUT BON ====================
+with tab1:
+    st.markdown("### 🛒 Catat Pengeluaran Bon")
     with st.form("form_perbekalan", clear_on_submit=True):
         jenis_item = st.selectbox("Jenis Perbekalan:", ["Solar", "Es Batu", "Logistik/Sembako", "Uang Saku ABK", "Lainnya"])
-        keterangan_tambahan = st.text_input("Keterangan Tambahan (Misal: Toko A / Jumlah)")
+        keterangan_tambahan = st.text_input("Keterangan Tambahan (Toko / Jumlah)")
         nominal = st.number_input("Nominal Pengeluaran (Rp)", min_value=0, step=50000)
         submit = st.form_submit_button("Simpan Pengeluaran")
         
@@ -78,15 +62,14 @@ if menu == "🛒 Input Bon Perbekalan":
             cursor = conn.cursor()
             cursor.execute("INSERT INTO perbekalan (tanggal, jenis_item, nominal) VALUES (?, ?, ?)", (tgl, item_final, nominal))
             conn.commit()
-            st.success(f"Berhasil mencatat bon {item_final} senilai Rp {nominal:,.0f}")
+            st.success(f"Tercatat: {item_final} - Rp {nominal:,.0f}")
             st.rerun()
 
-# --- MENU 2: INPUT HASIL JUAL IKAN ---
-elif menu == "🐟 Input Hasil Jual Ikan":
-    st.subheader("💰 Catat Pendapatan Penjualan")
+# ==================== TAB 2: INPUT JUAL IKAN ====================
+with tab2:
+    st.markdown("### 🐟 Catat Pendapatan Penjualan")
     with st.form("form_jual", clear_on_submit=True):
-        st.write("Masukkan total uang yang didapat dari penjualan ikan setelah berlayar.")
-        pendapatan = st.number_input("Total Uang Hasil Ikan (Rp)", min_value=0, step=500000)
+        pendapatan = st.number_input("Total Uang Hasil Jual Ikan (Rp)", min_value=0, step=500000)
         submit = st.form_submit_button("Simpan Hasil Jual")
         
         if submit and pendapatan > 0:
@@ -94,36 +77,75 @@ elif menu == "🐟 Input Hasil Jual Ikan":
             cursor = conn.cursor()
             cursor.execute("INSERT INTO penjualan_ikan (tanggal, pendapatan_kotor) VALUES (?, ?)", (tgl, pendapatan))
             conn.commit()
-            st.success(f"Hasil penjualan Rp {pendapatan:,.0f} berhasil masuk sistem!")
+            st.success(f"Hasil penjualan Rp {pendapatan:,.0f} berhasil disimpan!")
             st.rerun()
 
-# --- MENU 3: RINCIAN BON AKTIF & KLIK TOTALAN ---
-elif menu == "📋 Rincian Bon Aktif":
-    st.subheader("📑 Item Bon Belum Dibayar")
-    df_bon = pd.read_sql_query("SELECT id, tanggal, jenis_item, nominal FROM perbekalan WHERE status='Belum Lunas'", conn)
+# ==================== TAB 3: LAPORAN & NOTA ====================
+with tab3:
+    st.markdown("### 📊 Ringkasan Keuangan Saat Ini")
+    
+    # Kartu Informasi Utama
+    st.error(f"📦 **Total Bon:** Rp {total_perbekalan:,.0f}")
+    st.success(f"💰 **Pendapatan Kotor:** Rp {total_pendapatan_kotor:,.0f}")
+    st.info(f"💵 **SISA BERSIH:** Rp {sisa_bersih:,.0f}")
+    
+    st.markdown("---")
+    st.markdown("#### 📑 Rincian Tabel Pengeluaran (Bon Aktif)")
+    
+    df_bon = pd.read_sql_query("SELECT tanggal AS Tanggal, jenis_item AS [Keterangan Bon], nominal AS [Nominal (Rp)] FROM perbekalan WHERE status='Belum Lunas'", conn)
     
     if df_bon.empty:
-        st.info("Tidak ada bon aktif. Perbekalan bersih!")
+        st.info("Belum ada rincian bon belanja.")
     else:
-        # Tampilkan rincian per item
-        for idx, row in df_bon.iterrows():
-            with st.container(border=True):
-                st.markdown(f"🔹 **{row['jenis_item']}**")
-                st.caption(f"Tanggal input: {row['tanggal']}")
-                st.markdown(f"<span style='color:red; font-weight:bold;'>Rp {row['nominal']:,.0f}</span>", unsafe_allow_html=True)
+        # Menampilkan tabel data yang rapi
+        st.dataframe(df_bon, use_container_width=True, hide_index=True)
         
         st.markdown("---")
-        # Tombol Sakti buat reset/bersihkan bon pas sudah totalan besar
-        st.write("⚠️ **Tombol Totalan Akhir Layar**\nKlik tombol di bawah jika kapal sudah pulang, ikan terjual, dan semua bon di atas ingin dianggap **Lunas/Dipotong** untuk pelayaran ini.")
+        st.markdown("#### 📱 Aksi Nota & Totalan")
         
-        if st.button("🔴 LUNASKAN SEMUA BON & RESET PENJUALAN"):
+        # Buat format teks untuk WhatsApp
+        text_wa = f"*NOTA TOTALAN KM QOLBIYA*\n"
+        text_wa += f"Tanggal: {datetime.now().strftime('%d-%m-%Y')}\n\n"
+        text_wa += f"*Rincian Pengeluaran Bon:*\n"
+        for _, r in df_bon.iterrows():
+            text_wa += f"- {r['Keterangan Bon']}: Rp {r['Nominal (Rp)']:,.0f}\n"
+        text_wa += f"\n----------------------------------------\n"
+        text_wa += f"📦 *Total Bon:* Rp {total_perbekalan:,.0f}\n"
+        text_wa += f"💰 *Pendapatan Kotor:* Rp {total_pendapatan_kotor:,.0f}\n"
+        text_wa += f"💵 *SISA BERSIH:* Rp {sisa_bersih:,.0f}\n"
+        text_wa += f"----------------------------------------\n"
+        text_wa += f"_Sistem Catatan MasdabiyaNet_"
+        
+        encoded_text = urllib.parse.quote(text_wa)
+        link_wa = f"https://wa.me/6281353539600?text={encoded_text}"
+        
+        # Tombol Kirim WA & Cetak Nota bersebelahan
+        col_wa, col_print = st.columns(2)
+        with col_wa:
+            st.link_button("📲 Kirim WA (081353539600)", link_wa, type="primary", use_container_width=True)
+            
+        with col_print:
+            # Menggunakan JavaScript bawaan browser untuk lari ke fitur print printer/PDF HP
+            btn_print = """
+            <script>
+            function printNota() {
+                window.print();
+            }
+            </script>
+            <button onclick="printNota()" style="width:100%; background-color:#f1f5f9; color:#334155; border:1px solid #cbd5e1; padding:0.5rem; border-radius:0.5rem; font-weight:bold; cursor:pointer;">
+                🖨️ Print / Cetak Nota
+            </button>
+            """
+            st.components.v1.html(btn_print, height=50)
+            
+        st.markdown("---")
+        # Tombol Reset Data Perjalanan Layar
+        if st.button("🔴 TUTUP BUKU & RESET SEMUA DATA", use_container_width=True):
             cursor = conn.cursor()
-            # Set semua bon lama jadi lunas
             cursor.execute("UPDATE perbekalan SET status='Lunas'")
-            # Kosongkan record pendapatan kotor untuk persiapan pelayaran berikutnya
             cursor.execute("DELETE FROM penjualan_ikan")
             conn.commit()
-            st.success("Semua bon telah dipotong! Sistem siap mencatat perbekalan pelayaran berikutnya.")
+            st.success("Buku pelayaran ini ditutup! Semua kembali ke Rp 0.")
             st.rerun()
 
 conn.close()
