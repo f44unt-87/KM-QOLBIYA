@@ -44,7 +44,7 @@ total_perbekalan = pd.read_sql_query("SELECT SUM(nominal) FROM perbekalan WHERE 
 total_pendapatan_kotor = pd.read_sql_query("SELECT SUM(pendapatan_kotor) FROM penjualan_ikan", conn).iloc[0,0] or 0
 sisa_bersih = total_pendapatan_kotor - total_perbekalan
 
-# --- MEMBUAT 3 TAB AGAR RINGKAS ---
+# --- MEMBUAT 3 TAB ---
 tab1, tab2, tab3 = st.tabs(["🛒 Input Bon", "🐟 Input Jual Ikan", "📋 Laporan Totalan"])
 
 # ==================== TAB 1: INPUT BON ====================
@@ -75,12 +75,14 @@ with tab2:
         if submit and pendapatan > 0:
             tgl = datetime.now().strftime('%Y-%m-%d')
             cursor = conn.cursor()
+            # Hapus data lama agar pendapatan kotor tidak terus terakumulasi dari pelayaran sebelumnya
+            cursor.execute("DELETE FROM penjualan_ikan")
             cursor.execute("INSERT INTO penjualan_ikan (tanggal, pendapatan_kotor) VALUES (?, ?)", (tgl, pendapatan))
             conn.commit()
             st.success(f"Hasil penjualan Rp {pendapatan:,.0f} berhasil disimpan!")
             st.rerun()
 
-# ==================== TAB 3: LAPORAN & NOTA ====================
+# ==================== TAB 3: LAPORAN, EDIT, & NOTA ====================
 with tab3:
     st.markdown("### 📊 Ringkasan Keuangan Saat Ini")
     
@@ -91,23 +93,53 @@ with tab3:
     
     st.markdown("---")
     st.markdown("#### 📑 Rincian Tabel Pengeluaran (Bon Aktif)")
+    st.caption("💡 Klik angka nominal untuk EDIT, atau pilih baris lalu tekan ikon Sampah / tombol Backspace di HP untuk HAPUS.")
     
-    df_bon = pd.read_sql_query("SELECT tanggal AS Tanggal, jenis_item AS [Keterangan Bon], nominal AS [Nominal (Rp)] FROM perbekalan WHERE status='Belum Lunas'", conn)
+    # Membaca ID agar bisa melakukan perubahan spesifik pada baris database
+    df_bon = pd.read_sql_query("SELECT id, tanggal AS Tanggal, jenis_item AS [Keterangan Bon], nominal AS [Nominal (Rp)] FROM perbekalan WHERE status='Belum Lunas'", conn)
     
     if df_bon.empty:
         st.info("Belum ada rincian bon belanja.")
     else:
-        # Menampilkan tabel data yang rapi
-        st.dataframe(df_bon, use_container_width=True, hide_index=True)
+        # Menampilkan Data Editor interaktif dengan menyembunyikan kolom ID asli
+        edited_df = st.data_editor(
+            df_bon, 
+            use_container_width=True, 
+            hide_index=True,
+            column_config={"id": None}, # ID disembunyikan dari user
+            num_rows="dynamic"          # Memperbolehkan penghapusan baris
+        )
+        
+        # Tombol konfirmasi jika ada perubahan data (Edit / Hapus)
+        if not edited_df.equals(df_bon):
+            if st.button("💾 Simpan Perubahan Tabel", type="secondary", use_container_width=True):
+                cursor = conn.cursor()
+                
+                # 1. Cek baris yang dihapus
+                current_ids = edited_df['id'].tolist() if 'id' in edited_df.columns else []
+                for original_id in df_bon['id'].tolist():
+                    if original_id not in current_ids:
+                        cursor.execute("DELETE FROM perbekalan WHERE id = ?", (original_id,))
+                
+                # 2. Cek baris yang diedit nilainya
+                for _, row in edited_df.iterrows():
+                    cursor.execute(
+                        "UPDATE perbekalan SET jenis_item = ?, [nominal] = ? WHERE id = ?",
+                        (row['Keterangan Bon'], row['Nominal (Rp)'], row['id'])
+                    )
+                
+                conn.commit()
+                st.success("Perubahan berhasil disimpan!")
+                st.rerun()
         
         st.markdown("---")
         st.markdown("#### 📱 Aksi Nota & Totalan")
         
-        # Buat format teks untuk WhatsApp
+        # Format teks WhatsApp
         text_wa = f"*NOTA TOTALAN KM QOLBIYA*\n"
         text_wa += f"Tanggal: {datetime.now().strftime('%d-%m-%Y')}\n\n"
         text_wa += f"*Rincian Pengeluaran Bon:*\n"
-        for _, r in df_bon.iterrows():
+        for _, r in edited_df.iterrows():
             text_wa += f"- {r['Keterangan Bon']}: Rp {r['Nominal (Rp)']:,.0f}\n"
         text_wa += f"\n----------------------------------------\n"
         text_wa += f"📦 *Total Bon:* Rp {total_perbekalan:,.0f}\n"
@@ -119,13 +151,11 @@ with tab3:
         encoded_text = urllib.parse.quote(text_wa)
         link_wa = f"https://wa.me/6281353539600?text={encoded_text}"
         
-        # Tombol Kirim WA & Cetak Nota bersebelahan
         col_wa, col_print = st.columns(2)
         with col_wa:
             st.link_button("📲 Kirim WA (081353539600)", link_wa, type="primary", use_container_width=True)
             
         with col_print:
-            # Menggunakan JavaScript bawaan browser untuk lari ke fitur print printer/PDF HP
             btn_print = """
             <script>
             function printNota() {
@@ -139,7 +169,6 @@ with tab3:
             st.components.v1.html(btn_print, height=50)
             
         st.markdown("---")
-        # Tombol Reset Data Perjalanan Layar
         if st.button("🔴 TUTUP BUKU & RESET SEMUA DATA", use_container_width=True):
             cursor = conn.cursor()
             cursor.execute("UPDATE perbekalan SET status='Lunas'")
