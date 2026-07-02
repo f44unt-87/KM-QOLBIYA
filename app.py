@@ -42,7 +42,7 @@ conn = get_connection()
 # AMBIL DATA UNTUK KALKULASI TOTALAN
 total_perbekalan = pd.read_sql_query("SELECT SUM(nominal) FROM perbekalan WHERE status='Belum Lunas'", conn).iloc[0,0] or 0
 total_pendapatan_kotor = pd.read_sql_query("SELECT SUM(pendapatan_kotor) FROM penjualan_ikan", conn).iloc[0,0] or 0
-sisa_bersih = total_pendapatan_kotor - total_perbekalan
+sisa_原始 = total_pendapatan_kotor - total_perbekalan
 
 # --- MEMBUAT 3 TAB ---
 tab1, tab2, tab3 = st.tabs(["🛒 Input Bon", "🐟 Input Jual Ikan", "📋 Laporan Totalan"])
@@ -81,14 +81,14 @@ with tab2:
             st.success(f"Hasil penjualan Rp {pendapatan:,.0f} berhasil disimpan!")
             st.rerun()
 
-# ==================== TAB 3: LAPORAN, EDIT, & NOTA ====================
+# ==================== TAB 3: LAPORAN, EDIT, & NOTA BERWARNA ====================
 with tab3:
     st.markdown("### 📊 Ringkasan Keuangan Saat Ini")
     
     # Kartu Informasi Utama
     st.error(f"📦 **Total Bon:** Rp {total_perbekalan:,.0f}")
     st.success(f"💰 **Pendapatan Kotor:** Rp {total_pendapatan_kotor:,.0f}")
-    st.info(f"💵 **SISA BERSIH:** Rp {sisa_bersih:,.0f}")
+    st.info(f"💵 **SISA BERSIH:** Rp {sisa_原始:,.0f}")
     
     st.markdown("---")
     st.markdown("#### 📑 Rincian Tabel Pengeluaran (Bon Aktif)")
@@ -127,7 +127,7 @@ with tab3:
         st.markdown("---")
         st.markdown("#### 📱 Aksi Nota & Totalan")
         
-        # 1. LOGIKA TEKS KHUSUS WHATSAPP
+        # 1. TEXT UNTUK WHATSAPP
         text_wa = f"*NOTA TOTALAN KM QOLBIYA*\n"
         text_wa += f"Tanggal: {datetime.now().strftime('%d-%m-%Y %H:%M')}\n\n"
         text_wa += f"*Rincian Pengeluaran Bon:*\n"
@@ -136,45 +136,73 @@ with tab3:
         text_wa += f"\n----------------------------------------\n"
         text_wa += f"📦 *Total Bon:* Rp {total_perbekalan:,.0f}\n"
         text_wa += f"💰 *Pendapatan Kotor:* Rp {total_pendapatan_kotor:,.0f}\n"
-        text_wa += f"💵 *SISA BERSIH:* Rp {sisa_bersih:,.0f}\n"
+        text_wa += f"💵 *SISA BERSIH:* Rp {sisa_原始:,.0f}\n"
         text_wa += f"----------------------------------------\n"
         text_wa += f"_Sistem Catatan MasdabiyaNet_"
         
         encoded_text = urllib.parse.quote(text_wa)
         link_wa = f"https://wa.me/6281353539600?text={encoded_text}"
         
-        # 2. LOGIKA STRUK STRUKTURAL UNTUK DI-PRINT (TERSEMBUNYI)
+        # 2. STRUKTUR NOTA PRINT BERWARNA (Desain Mirip Gambar Contoh)
         html_print_content = f"""
-        <div style='font-family:Courier,monospace; width:280px; padding:10px; font-size:12px; line-height:1.4;'>
-            <center><b>NOTA TOTALAN KM QOLBIYA</b><br>Tgl: {datetime.now().strftime('%d-%m-%Y %H:%M')}</center>
-            ------------------------------------<br>
-            <b>RINCIAN PENGELUARAN BON:</b><br>
+        <div style='font-family: Arial, sans-serif; max-width: 500px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;'>
+            <h2 style='color: #1e3a8a; text-align: center; margin-bottom: 5px;'>⚓ KM QOLBIYA</h2>
+            <p style='text-align: center; color: #555; font-size: 12px; margin-top: 0;'>Laporan Totalan Hasil Layar - {datetime.now().strftime('%d/%m/%Y %H:%M')}</p>
+            
+            <table style='width: 100%; border-collapse: collapse; margin-top: 15px;'>
+                <thead>
+                    <tr style='background-color: #3b82f6; color: white; text-align: left; font-size: 13px;'>
+                        <th style='padding: 10px; border: 1px solid #cbd5e1;'>Tanggal</th>
+                        <th style='padding: 10px; border: 1px solid #cbd5e1;'>Keterangan Bon</th>
+                        <th style='padding: 10px; border: 1px solid #cbd5e1; text-align: right;'>Nominal</th>
+                    </tr>
+                </thead>
+                <tbody style='font-size: 13px;'>
         """
-        for _, r in edited_df.iterrows():
-            html_print_content += f"- {r['Keterangan Bon']}:<br>&nbsp;&nbsp;Rp {r['Nominal (Rp)']:,.0f}<br>"
+        # Melakukan looping baris tabel dengan warna selang-seling abu muda
+        for idx, r in edited_df.iterrows():
+            bg_row = "#f8fafc" if idx % 2 == 0 else "#ffffff"
+            html_print_content += f"""
+                    <tr style='background-color: {bg_row};'>
+                        <td style='padding: 10px; border: 1px solid #e2e8f0;'>{r['Tanggal']}</td>
+                        <td style='padding: 10px; border: 1px solid #e2e8f0; font-weight: bold; color: #334155;'>{r['Keterangan Bon']}</td>
+                        <td style='padding: 10px; border: 1px solid #e2e8f0; text-align: right; color: #b91c1c; font-weight: bold;'>Rp {r['Nominal (Rp)']:,.0f}</td>
+                    </tr>
+            """
         html_print_content += f"""
-            ------------------------------------<br>
-            📦 Total Bon&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: Rp {total_perbekalan:,.0f}<br>
-            💰 Pend. Kotor&nbsp;&nbsp;&nbsp;: Rp {total_pendapatan_kotor:,.0f}<br>
-            ====================================<br>
-            💵 <b>SISA BERSIH&nbsp;&nbsp;: Rp {sisa_bersih:,.0f}</b><br>
-            ------------------------------------<br>
-            <center><i>Sistem Catatan MasdabiyaNet</i></center>
+                </tbody>
+            </table>
+            
+            <table style='width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px; font-weight: bold;'>
+                <tr style='background-color: #fca5a5; color: #991b1b;'>
+                    <td style='padding: 10px; border: 1px solid #f87171;'>📦 TOTAL BON PERBEKALAN</td>
+                    <td style='padding: 10px; border: 1px solid #f87171; text-align: right;'>Rp {total_perbekalan:,.0f}</td>
+                </tr>
+                <tr style='background-color: #86efac; color: #166534;'>
+                    <td style='padding: 10px; border: 1px solid #4ade80;'>💰 PENDAPATAN KOTOR LAUT</td>
+                    <td style='padding: 10px; border: 1px solid #4ade80; text-align: right;'>Rp {total_pendapatan_kotor:,.0f}</td>
+                </tr>
+                <tr style='background-color: #1e3a8a; color: white; font-size: 15px;'>
+                    <td style='padding: 12px; border: 1px solid #1e3a8a;'>💵 SISA BERSIH (BAGI HASIL)</td>
+                    <td style='padding: 12px; border: 1px solid #1e3a8a; text-align: right; font-weight: black;'>Rp {sisa_原始:,.0f}</td>
+                </tr>
+            </table>
+            <p style='text-align: center; font-size: 11px; color: #94a3b8; margin-top: 25px;'><i>Sistem Catatan Kasir Resmi - MasdabiyaNet</i></p>
         </div>
         """
         
-        # Tombol Kirim WA & Cetak Nota bersebelahan
+        # Tombol Kirim WA & Cetak Nota
         col_wa, col_print = st.columns(2)
         with col_wa:
             st.link_button("📲 Kirim WA (081353539600)", link_wa, type="primary", use_container_width=True)
             
         with col_print:
-            # Tombol print cerdas: Membuka window baru, mengisi struk, lalu menembak dialog cetak Chrome
+            # Pemicu cetak jendela baru
             js_print_script = f"""
             <script>
             function cetakStruk() {{
                 var printWindow = window.open('', '_blank');
-                printWindow.document.write("<html><head><title>Print Nota KM QOLBIYA</title></head><body style='margin:10px;'>");
+                printWindow.document.write("<html><head><title>Print Nota KM QOLBIYA</title></head><body style='margin:20px;'>");
                 printWindow.document.write(`{html_print_content}`);
                 printWindow.document.write("</body></html>");
                 printWindow.document.close();
@@ -185,7 +213,7 @@ with tab3:
                 }}, 500);
             }}
             </script>
-            <button onclick="cetakStruk()" style="width:100%; height:40px; background-color:#2563eb; color:white; border:none; border-radius:0.5rem; font-weight:bold; font-size:14px; cursor:pointer; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);">
+            <button onclick="cetakStruk()" style="width:100%; height:40px; background-color:#2563eb; color:white; border:none; border-radius:0.5rem; font-weight:bold; font-size:14px; cursor:pointer;">
                 🖨️ Print / Cetak Nota
             </button>
             """
