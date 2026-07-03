@@ -186,9 +186,9 @@ with tab3:
                     <td style="padding: 10px; border: 1px solid #4ade80; color: #000000;">&#128176; PENDAPATAN KOTOR LAUT</td>
                     <td style="padding: 10px; border: 1px solid #4ade80; text-align: right; color: #000000; font-weight: bold;">Rp {total_pendapatan_kotor:,.0f}</td>
                 </tr>
-                <tr style="background-color: #1e3a8a; color: #ffffff; font-size: 15px;">
-                    <td style="padding: 12px; border: 1px solid #1e3a8a; color: #ffffff;">&#128181; SISA BERSIH (BAGI HASIL)</td>
-                    <td style="padding: 12px; border: 1px solid #1e3a8a; text-align: right; font-weight: 900; color: #ffffff;">Rp {sisa_bersih:,.0f}</td>
+                <tr style="background-color: #3b82f6; color: #ffffff; font-size: 15px;">
+                    <td style="padding: 12px; border: 1px solid #3b82f6; color: #ffffff;">&#128181; SISA BERSIH (BAGI HASIL)</td>
+                    <td style="padding: 12px; border: 1px solid #3b82f6; text-align: right; font-weight: 900; color: #ffffff;">Rp {sisa_bersih:,.0f}</td>
                 </tr>
             </table>
             <p style="text-align: center; font-size: 11px; color: #64748b; margin-top: 25px; font-weight: bold;"><i>Sistem Catatan Kasir Resmi - MasdabiyaNet</i></p>
@@ -238,45 +238,44 @@ with tab4:
     if sisa_bersih <= 0:
         st.warning("Belum ada Sisa Bersih / Hasil Jual Ikan untuk dihitung bagi hasilnya.")
     else:
-        # LOGIKA PERHITUNGAN AWAL (REFERENSI SAJA)
-        hasil_referensi = sisa_bersih / 76
-        
         st.info(f"💵 **Laba Bersih Perjalanan:** Rp {sisa_bersih:,.0f}")
-        st.caption(f"💡 Referensi Hitungan Pokok (Laba / 76): Rp {hasil_referensi:,.2f}")
+        st.caption(f"💡 Referensi Hitungan Pokok (Laba / 76): Rp {(sisa_bersih / 76):,.2f}")
         
-        # INPUT MANUAL SESUAI KEINGINAN BOS KANKER
         st.markdown("---")
         hasil_olah = st.number_input(
             "✍️ **Masukkan Hasil Olah (Sesuai Keinginan Anda):**", 
             min_value=0, 
             value=int((sisa_bersih / 76) // 100000) * 100000 if sisa_bersih > 0 else 0,
-            step=50000,
-            help="Isi manual angka pembulatan yang Anda inginkan di sini."
+            step=50000
         )
         
-        # Hitung Jatah Berdasarkan Input Manual
-        kapal = 30 * hasil_olah
-        seluruh_abk = 36 * hasil_olah
-        spesial_abk = 10 * hasil_olah  # Juru mudi/mesin/prapen
-        per_abk = 2 * hasil_olah       # Info jatah per orang ABK
+        # LOGIKA PERHITUNGAN BARU (KAPAL DIPECAH JADI BOS DAN JURAGAN)
+        bos = 25 * hasil_olah
+        juragan = 5 * hasil_olah
+        kapal_total = 30 * hasil_olah # Untuk hitungan sisa kas (25 + 5 = 30)
         
-        # Hitung Sisa Dana Setelah Dibagikan ke 3 Pos Utama
-        total_dibagikan = kapal + seluruh_abk + spesial_abk
+        seluruh_abk = 36 * hasil_olah
+        spesial_abk = 10 * hasil_olah
+        per_abk = 2 * hasil_olah
+        
+        # Sisa Kas tetap dikurangi total pengeluaran pos utama (30 + 36 + 10 = 76)
+        total_dibagikan = kapal_total + seluruh_abk + spesial_abk
         sisa_dana_cadangan = sisa_bersih - total_dibagikan
         
         st.markdown("---")
         st.markdown("#### 📋 Rincian Distribusi Uang:")
         
-        # Tampilan tabel hasil input manual
         data_pembagian = {
             "Penerima / Pos": [
-                "🚢 1. Penghasilan Kapal (30x)",
-                "👨‍👩‍👦 2. Penghasilan Seluruh ABK (36x)",
-                "🔧 3. Penghasilan Juru Mudi / Mesin / Prapen (10x)",
+                "👑 Penghasilan Bos (25x)",
+                "💼 Penghasilan Juragan (5x)",
+                "👨‍👩‍👦 Penghasilan Seluruh ABK (36x)",
+                "🔧 Penghasilan Juru Mudi / Mesin / Prapen (10x)",
                 "🐟 Jatah Bersih per Individu ABK (2x)"
             ],
             "Total Uang Dibayar": [
-                f"Rp {kapal:,.0f}",
+                f"Rp {bos:,.0f}",
+                f"Rp {juragan:,.0f}",
                 f"Rp {seluruh_abk:,.0f}",
                 f"Rp {spesial_abk:,.0f}",
                 f"Rp {per_abk:,.0f}"
@@ -285,23 +284,23 @@ with tab4:
         df_pembagian = pd.DataFrame(data_pembagian)
         st.dataframe(df_pembagian, use_container_width=True, hide_index=True)
         
-        # TAMPILAN SISA KAS SETELAH DIBAGIKAN
         if sisa_dana_cadangan >= 0:
             st.success(f"📈 **Sisa Uang (Masuk Kas/Cadangan Kapal):** Rp {sisa_dana_cadangan:,.0f}")
         else:
-            st.danger(f"📉 **Minus (Uang Dibagi Melebihi Laba Bersih):** Rp {sisa_dana_cadangan:,.0f}")
+            st.error(f"📉 **Minus (Uang Dibagi Melebihi Laba Bersih):** Rp {sisa_dana_cadangan:,.0f}")
             
         st.markdown("---")
-        # GENERATE TEKS WA LAPORAN MANUAL
+        # GENERATE TEKS WA LAPORAN BARU DENGAN RINCIAN BOS & JURAGAN
         text_wa_bagi = (
             f"*👥 LAPORAN BAGI HASIL KM QOLBIYA*\n"
             f"Tanggal: {datetime.now().strftime('%d-%m-%Y %H:%M')}\n"
             f"Laba Bersih Perjalanan: Rp {sisa_bersih:,.0f}\n"
             f"Nilai Hasil Olah (Manual): Rp {hasil_olah:,.0f}\n"
             f"----------------------------------------\n"
-            f"🚢 *Penghasilan Kapal (30x):* Rp {kapal:,.0f}\n"
+            f"👑 *Penghasilan Bos (25x):* Rp {bos:,.0f}\n"
+            f"💼 *Penghasilan Juragan (5x):* Rp {juragan:,.0f}\n"
             f"👨‍👩‍👦 *Penghasilan Seluruh ABK (36x):* Rp {seluruh_abk:,.0f}\n"
-            f"🔧 *Juru Mudi/Mesin/Prapen (10x):* Rp {spesial_abk:,.0f}\n"
+            f"🔧 *Penghasilan Juru Mudi/Mesin/Prapen (10x):* Rp {spesial_abk:,.0f}\n"
             f"🐟 *Penghasilan Per ABK (2x):* Rp {per_abk:,.0f}\n"
             f"----------------------------------------\n"
             f"💰 *SISA KAS / CADANGAN:* Rp {sisa_dana_cadangan:,.0f}\n"
