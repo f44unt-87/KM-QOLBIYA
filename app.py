@@ -44,8 +44,8 @@ total_perbekalan = pd.read_sql_query("SELECT SUM(nominal) FROM perbekalan WHERE 
 total_pendapatan_kotor = pd.read_sql_query("SELECT SUM(pendapatan_kotor) FROM penjualan_ikan", conn).iloc[0,0] or 0
 sisa_bersih = total_pendapatan_kotor - total_perbekalan
 
-# --- MEMBUAT 3 TAB ---
-tab1, tab2, tab3 = st.tabs(["🛒 Input Bon", "🐟 Input Jual Ikan", "📋 Laporan Totalan"])
+# --- MEMBUAT 4 TAB ---
+tab1, tab2, tab3, tab4 = st.tabs(["🛒 Input Bon", "🐟 Input Jual Ikan", "📋 Laporan Totalan", "👥 Bagi Hasil ABK"])
 
 # ==================== TAB 1: INPUT BON ====================
 with tab1:
@@ -132,7 +132,6 @@ with tab3:
         for _, r in edited_df.iterrows():
             rincian_wa_items += f"- {r['Keterangan Bon']}: Rp {r['Nominal (Rp)']:,.0f}\n"
 
-        # Teks Utama WhatsApp Bersih Tanpa Kode URL Encoding %E2%9A%93
         text_wa = (
             f"*⚓ NOTA TOTALAN KM QOLBIYA*\n"
             f"Tanggal: {datetime.now().strftime('%d-%m-%Y %H:%M')}\n\n"
@@ -192,7 +191,7 @@ with tab3:
                     <td style="padding: 12px; border: 1px solid #1e3a8a; text-align: right; font-weight: 900; color: #ffffff;">Rp {sisa_bersih:,.0f}</td>
                 </tr>
             </table>
-            <p style="text-align: center; font-size: 11px; color: #000000; margin-top: 25px; font-weight: bold;"><i>Sistem Catatan Kasir Resmi - MasdabiyaNet</i></p>
+            <p style="text-align: center; font-size: 11px; color: #64748b; margin-top: 25px; font-weight: bold;"><i>Sistem Catatan Kasir Resmi - MasdabiyaNet</i></p>
         </div>
         """
         
@@ -224,12 +223,94 @@ with tab3:
             st.components.v1.html(js_print_script, height=45)
             
         st.markdown("---")
-        if st.button("🔴 TUTUP BUKU & RESET SEMUA DATA", use_container_width=True):
+        if st.button("🔴 TUTUP BUKU & RESET SEMUA DATA", use_container_width=True, key="reset_tab3"):
             cursor = conn.cursor()
             cursor.execute("UPDATE perbekalan SET status='Lunas'")
             cursor.execute("DELETE FROM penjualan_ikan")
             conn.commit()
             st.success("Buku pelayaran ini ditutup! Semua kembali ke Rp 0.")
             st.rerun()
+
+# ==================== TAB 4: BAGI HASIL ABK ====================
+with tab4:
+    st.markdown("### 👥 Perhitungan Pembagian Hasil ABK")
+    
+    if sisa_bersih <= 0:
+        st.warning("Belum ada Sisa Bersih / Hasil Jual Ikan untuk dihitung bagi hasilnya.")
+    else:
+        # LOGIKA PERHITUNGAN AWAL (REFERENSI SAJA)
+        hasil_referensi = sisa_bersih / 76
+        
+        st.info(f"💵 **Laba Bersih Perjalanan:** Rp {sisa_bersih:,.0f}")
+        st.caption(f"💡 Referensi Hitungan Pokok (Laba / 76): Rp {hasil_referensi:,.2f}")
+        
+        # INPUT MANUAL SESUAI KEINGINAN BOS KANKER
+        st.markdown("---")
+        hasil_olah = st.number_input(
+            "✍️ **Masukkan Hasil Olah (Sesuai Keinginan Anda):**", 
+            min_value=0, 
+            value=int((sisa_bersih / 76) // 100000) * 100000 if sisa_bersih > 0 else 0,
+            step=50000,
+            help="Isi manual angka pembulatan yang Anda inginkan di sini."
+        )
+        
+        # Hitung Jatah Berdasarkan Input Manual
+        kapal = 30 * hasil_olah
+        seluruh_abk = 36 * hasil_olah
+        spesial_abk = 10 * hasil_olah  # Juru mudi/mesin/prapen
+        per_abk = 2 * hasil_olah       # Info jatah per orang ABK
+        
+        # Hitung Sisa Dana Setelah Dibagikan ke 3 Pos Utama
+        total_dibagikan = kapal + seluruh_abk + spesial_abk
+        sisa_dana_cadangan = sisa_bersih - total_dibagikan
+        
+        st.markdown("---")
+        st.markdown("#### 📋 Rincian Distribusi Uang:")
+        
+        # Tampilan tabel hasil input manual
+        data_pembagian = {
+            "Penerima / Pos": [
+                "🚢 1. Penghasilan Kapal (30x)",
+                "👨‍👩‍👦 2. Penghasilan Seluruh ABK (36x)",
+                "🔧 3. Penghasilan Juru Mudi / Mesin / Prapen (10x)",
+                "🐟 Jatah Bersih per Individu ABK (2x)"
+            ],
+            "Total Uang Dibayar": [
+                f"Rp {kapal:,.0f}",
+                f"Rp {seluruh_abk:,.0f}",
+                f"Rp {spesial_abk:,.0f}",
+                f"Rp {per_abk:,.0f}"
+            ]
+        }
+        df_pembagian = pd.DataFrame(data_pembagian)
+        st.dataframe(df_pembagian, use_container_width=True, hide_index=True)
+        
+        # TAMPILAN SISA KAS SETELAH DIBAGIKAN
+        if sisa_dana_cadangan >= 0:
+            st.success(f"📈 **Sisa Uang (Masuk Kas/Cadangan Kapal):** Rp {sisa_dana_cadangan:,.0f}")
+        else:
+            st.danger(f"📉 **Minus (Uang Dibagi Melebihi Laba Bersih):** Rp {sisa_dana_cadangan:,.0f}")
+            
+        st.markdown("---")
+        # GENERATE TEKS WA LAPORAN MANUAL
+        text_wa_bagi = (
+            f"*👥 LAPORAN BAGI HASIL KM QOLBIYA*\n"
+            f"Tanggal: {datetime.now().strftime('%d-%m-%Y %H:%M')}\n"
+            f"Laba Bersih Perjalanan: Rp {sisa_bersih:,.0f}\n"
+            f"Nilai Hasil Olah (Manual): Rp {hasil_olah:,.0f}\n"
+            f"----------------------------------------\n"
+            f"🚢 *Penghasilan Kapal (30x):* Rp {kapal:,.0f}\n"
+            f"👨‍👩‍👦 *Penghasilan Seluruh ABK (36x):* Rp {seluruh_abk:,.0f}\n"
+            f"🔧 *Juru Mudi/Mesin/Prapen (10x):* Rp {spesial_abk:,.0f}\n"
+            f"🐟 *Penghasilan Per ABK (2x):* Rp {per_abk:,.0f}\n"
+            f"----------------------------------------\n"
+            f"💰 *SISA KAS / CADANGAN:* Rp {sisa_dana_cadangan:,.0f}\n"
+            f"----------------------------------------\n"
+            f"_Sistem Catatan MasdabiyaNet_"
+        )
+        encoded_wa_bagi = urllib.parse.quote(text_wa_bagi)
+        link_wa_bagi = f"https://wa.me/6281353539600?text={encoded_wa_bagi}"
+        
+        st.link_button("📲 Kirim WA Laporan ABK (081353539600)", link_wa_bagi, type="primary", use_container_width=True)
 
 conn.close()
